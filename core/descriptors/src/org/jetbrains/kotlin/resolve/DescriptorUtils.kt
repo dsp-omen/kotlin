@@ -293,15 +293,7 @@ fun CallableDescriptor.varargParameterPosition() =
 fun ClassDescriptor.computeImplicitOuterClassArguments(): Map<ClassDescriptor, List<TypeProjection>> {
     val result = hashMapOf<ClassDescriptor, List<TypeProjection>>()
 
-    @Suppress("UNCHECKED_CAST")
-    val classes = generateSequence(this) {
-        if (it.isInner)
-            it.containingDeclaration as? ClassDescriptor
-        else
-            null
-    }
-
-    for (current in classes) {
+    for (current in classesFromInnerToOuter()) {
         for ((classDescriptor, arguments) in current.computeImplicitOuterClassArgumentsFromSupertypesAndItself()) {
             // See A.B from the example above
             if (classDescriptor !in result) {
@@ -311,6 +303,13 @@ fun ClassDescriptor.computeImplicitOuterClassArguments(): Map<ClassDescriptor, L
     }
 
     return result
+}
+
+fun ClassDescriptor.classesFromInnerToOuter() = generateSequence(this) {
+    if (it.isInner)
+        it.containingDeclaration.original as? ClassDescriptor
+    else
+        null
 }
 
 private fun ClassDescriptor.computeImplicitOuterClassArgumentsFromSupertypesAndItself(): Collection<Pair<ClassDescriptor, List<TypeProjection>>> =
