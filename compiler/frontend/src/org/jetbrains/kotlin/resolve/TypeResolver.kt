@@ -32,6 +32,7 @@ import org.jetbrains.kotlin.psi.debugText.getDebugText
 import org.jetbrains.kotlin.resolve.PossiblyBareType.type
 import org.jetbrains.kotlin.resolve.bindingContextUtil.recordScope
 import org.jetbrains.kotlin.resolve.calls.tasks.DynamicCallableDescriptors
+import org.jetbrains.kotlin.resolve.descriptorUtil.classesFromInnerToOuter
 import org.jetbrains.kotlin.resolve.descriptorUtil.computeImplicitOuterClassArguments
 import org.jetbrains.kotlin.resolve.lazy.ForceResolveUtil
 import org.jetbrains.kotlin.resolve.lazy.LazyEntity
@@ -486,11 +487,16 @@ class TypeResolver(
             val restArguments = implicitOuterClassArgumentsByDescriptor[nextParameterOwner]
             val restParameters = parameters.subList(result.size, parameters.size)
 
-            if (restArguments == null) {
+            val typeParametersCanBeSpecifiedCount =
+                    classDescriptor.classesFromInnerToOuter().sumBy { it.declaredTypeParameters.size } - result.size
+
+            if (restArguments == null && typeParametersCanBeSpecifiedCount > 0) {
                 c.trace.report(WRONG_NUMBER_OF_TYPE_ARGUMENTS.on(qualifierParts.last().expression, parameters.size, classDescriptor))
                 return null
             }
             else {
+                if (restArguments == null) return Pair(result, emptyList())
+
                 assert(restParameters.size == restArguments.size) {
                     "Number of type of restParameters should be equal to ${restArguments.size}, " +
                     "but ${restArguments.size} were found for $classDescriptor/$nextParameterOwner"
@@ -534,10 +540,6 @@ class TypeResolver(
     ): List<TypeProjectionImpl> {
         val restParameters = constructorParameters.subList(fromIndex, constructorParameters.size)
         if (restParameters.isEmpty()) return emptyList()
-
-        assert(constructorParameters[fromIndex].original.containingDeclaration !is ClassDescriptor) {
-            "Rest of the type parameters of local class must start from one contained in function/property"
-        }
 
         return restParameters.map {
             TypeProjectionImpl(it.original.defaultType)
