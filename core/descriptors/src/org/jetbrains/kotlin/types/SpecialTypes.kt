@@ -16,8 +16,13 @@
 
 package org.jetbrains.kotlin.types
 
+import org.jetbrains.kotlin.builtins.functions.FunctionInvokeDescriptor
+import org.jetbrains.kotlin.descriptors.DeclarationDescriptor
+import org.jetbrains.kotlin.descriptors.SimpleFunctionDescriptor
 import org.jetbrains.kotlin.descriptors.annotations.Annotations
+import org.jetbrains.kotlin.incremental.components.LookupLocation
 import org.jetbrains.kotlin.name.Name
+import org.jetbrains.kotlin.resolve.scopes.DescriptorKindFilter
 import org.jetbrains.kotlin.resolve.scopes.MemberScope
 import org.jetbrains.kotlin.storage.StorageManager
 
@@ -57,6 +62,24 @@ class FunctionType(
          */
         val parameterNames: List<Name>
 ) : DelegatingSimpleType() {
+
+    override val memberScope = object: MemberScope by delegate.memberScope {
+        override fun getContributedFunctions(name: Name, location: LookupLocation): Collection<SimpleFunctionDescriptor> {
+            return delegate.memberScope.getContributedFunctions(name, location).replaceParameterNames()
+        }
+
+        override fun getContributedDescriptors(kindFilter: DescriptorKindFilter, nameFilter: (Name) -> Boolean): Collection<DeclarationDescriptor> {
+            return delegate.memberScope.getContributedDescriptors(kindFilter, nameFilter).replaceParameterNames()
+        }
+
+        private fun <TDescriptor : DeclarationDescriptor> Collection<TDescriptor>.replaceParameterNames(): List<TDescriptor> {
+            return map {
+                @Suppress("UNCHECKED_CAST")
+                if (it is FunctionInvokeDescriptor) it.replaceParameterNames(parameterNames) as TDescriptor else it
+            }
+        }
+    }
+
     override fun replaceAnnotations(newAnnotations: Annotations)
             = FunctionType(delegate.replaceAnnotations(newAnnotations), parameterNames)
 
